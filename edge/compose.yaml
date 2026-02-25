@@ -1,0 +1,7 @@
+services:
+  server:
+    build:
+      context: ./server
+    env_file: .env
+    restart: unless-stopped
+    network_mode: host
