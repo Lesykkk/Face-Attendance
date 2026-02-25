@@ -1,7 +1,4 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { ClipboardCheck, Lock, User, Loader2 } from 'lucide-react';
+import logo from '../assets/logo.svg';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -33,8 +30,8 @@ const Login = () => {
     <div className="min-h-screen bg-secondary/30 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-card border border-border rounded-3xl p-8 shadow-2xl shadow-primary/5 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-4">
-            <ClipboardCheck className="text-primary-foreground" size={32} />
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl overflow-hidden shadow-lg shadow-primary/5 mb-4">
+            <img src={logo} alt="Logo" className="w-full h-full object-cover rounded-2xl" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Admin Login</h1>
           <p className="text-muted-foreground mt-1">Face Attendance Management</p>

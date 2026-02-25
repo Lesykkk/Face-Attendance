@@ -10,6 +10,7 @@ import {
   Settings, 
   LogOut 
 } from 'lucide-react';
+import logo from '../assets/logo.svg';
 
 const SidebarItem = ({ icon: Icon, label, path, active = false }) => (
   <Link to={path} className={`
@@ -31,8 +32,8 @@ const Sidebar = () => {
   return (
     <div className="w-64 border-r border-border h-screen flex flex-col p-4 bg-card/50 backdrop-blur-xl sticky top-0">
       <div className="flex items-center gap-3 px-4 py-6 mb-8">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-          <ClipboardCheck className="text-primary-foreground" size={24} />
+        <div className="w-10 h-10 bg-primary/10 rounded-xl overflow-hidden shadow-lg shadow-primary/5">
+          <img src={logo} alt="Logo" className="w-full h-full object-cover rounded-xl" />
         </div>
         <div>
           <h1 className="text-xl font-bold tracking-tight">Face Attendance</h1>
