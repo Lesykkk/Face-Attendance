@@ -4,17 +4,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    central_server_url: str
-    edge_api_key: str
+    CENTRAL_SERVER_URL: str
+    EDGE_API_KEY: str
 
-    sync_interval_seconds: int = 300
-    frame_skip: int = 5
-    detection_threshold: float = 0.363
-    attendance_cooldown_minutes: int = 10
-    cv_workers: int = 4
+    SYNC_INTERVAL_SECONDS: int = 30
+    FRAME_SKIP: int = 5
+    DETECTION_THRESHOLD: float = 0.45
+    ATTENDANCE_COOLDOWN_MINUTES: int = 1
+    CV_WORKERS: int = 6
 
-    yunet_model_path: str = "models/yunet.onnx"
-    sface_model_path: str = "models/sface.onnx"
+    YUNET_MODEL_PATH: str = "models/yunet.onnx"
+    SFACE_MODEL_PATH: str = "models/sface.onnx"
+
+    TOP_K: int = 50
+    SCORE_THRESHOLD: float = 0.6
+    NMS_THRESHOLD: float = 0.3
 
 
 settings = Settings()

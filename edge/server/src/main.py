@@ -46,10 +46,13 @@ async def camera_pipeline(
     reporter: AttendanceReporter,
 ) -> None:
     """Infinite pipeline loop for a single camera."""
-    detector = FaceDetector(settings.yunet_model_path, executor)
-    embedder = FaceEmbedder(settings.sface_model_path, executor)
-    matcher = Matcher(settings.detection_threshold)
-    cooldown = CooldownFilter(settings.attendance_cooldown_minutes)
+    detector = FaceDetector(settings.YUNET_MODEL_PATH, executor,
+                             top_k=settings.TOP_K,
+                             score_threshold=settings.SCORE_THRESHOLD,
+                             nms_threshold=settings.NMS_THRESHOLD)
+    embedder = FaceEmbedder(settings.SFACE_MODEL_PATH, executor)
+    matcher = Matcher(settings.DETECTION_THRESHOLD)
+    cooldown = CooldownFilter(settings.ATTENDANCE_COOLDOWN_MINUTES)
     grabber = FrameGrabber(rtsp_url, executor)
 
     grabber.start()
@@ -69,7 +72,7 @@ async def camera_pipeline(
             frame_registry.publish(camera_id, frame)
 
             # Skip frames according to FRAME_SKIP for face detection
-            if frame_counter % settings.frame_skip != 0:
+            if frame_counter % settings.FRAME_SKIP != 0:
                 continue
 
             # Get current active sessions for this camera
@@ -77,7 +80,7 @@ async def camera_pipeline(
             sessions = state.camera_sessions.get(rtsp_url, [])
 
             # Periodically clean up cooldown entries for expired sessions
-            if frame_counter % (settings.frame_skip * 100) == 0:
+            if frame_counter % (settings.FRAME_SKIP * 100) == 0:
                 active_ids = {s.session_id for s in sessions}
                 cooldown.cleanup(active_ids)
 
@@ -132,15 +135,15 @@ async def camera_pipeline(
 
 
 async def main() -> None:
-    reporter = AttendanceReporter(settings.central_server_url, settings.edge_api_key)
+    reporter = AttendanceReporter(settings.CENTRAL_SERVER_URL, settings.EDGE_API_KEY)
     sync_manager = SyncManager(
-        settings.central_server_url,
-        settings.edge_api_key,
-        settings.sync_interval_seconds,
+        settings.CENTRAL_SERVER_URL,
+        settings.EDGE_API_KEY,
+        settings.SYNC_INTERVAL_SECONDS,
     )
-    tunnel = TunnelClient(settings.central_server_url, settings.edge_api_key)
+    tunnel = TunnelClient(settings.CENTRAL_SERVER_URL, settings.EDGE_API_KEY)
 
-    executor = ThreadPoolExecutor(max_workers=settings.cv_workers)
+    executor = ThreadPoolExecutor(max_workers=settings.CV_WORKERS)
 
     # Start background sync and tunnel
     sync_task = asyncio.create_task(sync_manager.run(), name="sync_manager")
@@ -181,7 +184,7 @@ async def main() -> None:
     # Periodically reconcile cameras after each sync cycle
     async def watch_loop() -> None:
         while True:
-            await asyncio.sleep(settings.sync_interval_seconds)
+            await asyncio.sleep(settings.SYNC_INTERVAL_SECONDS)
             await reconcile_cameras()
 
     watch_task = asyncio.create_task(watch_loop(), name="watch_loop")

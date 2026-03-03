@@ -14,17 +14,23 @@ logger = logging.getLogger(__name__)
 
 
 class FaceDetector:
-    def __init__(self, model_path: str, executor: ThreadPoolExecutor) -> None:
+    def __init__(
+        self,
+        model_path: str,
+        executor: ThreadPoolExecutor,
+        *,
+        top_k: int = 50,
+        score_threshold: float = 0.5,
+        nms_threshold: float = 0.3,
+    ) -> None:
         self._executor = executor
-        # Each instance has its own cv2 detector (not thread-safe to share)
-        # We create one per camera task to avoid contention.
         self._detector = cv2.FaceDetectorYN.create(
             model=model_path,
             config="",
-            input_size=(320, 320),
-            score_threshold=0.6,
-            nms_threshold=0.3,
-            top_k=5,
+            input_size=(320, 320),  # overridden per frame via setInputSize()
+            score_threshold=score_threshold,
+            nms_threshold=nms_threshold,
+            top_k=top_k,
         )
         self._lock = asyncio.Lock()  # single detector per camera, serialise calls
 
