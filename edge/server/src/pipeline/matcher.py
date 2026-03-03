@@ -69,3 +69,14 @@ class CooldownFilter:
 
     def mark_reported(self, person_id: int, session_id: int) -> None:
         self._last_reported[(person_id, session_id)] = datetime.now(timezone.utc)
+
+    def cleanup(self, active_session_ids: set[int]) -> None:
+        """Remove entries for sessions that are no longer active."""
+        stale_keys = [
+            key for key in self._last_reported
+            if key[1] not in active_session_ids
+        ]
+        for key in stale_keys:
+            del self._last_reported[key]
+        if stale_keys:
+            logger.debug(f"[CooldownFilter] Cleaned up {len(stale_keys)} stale entries")

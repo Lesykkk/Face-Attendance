@@ -96,7 +96,11 @@ SESSIONS = [
     },
 ]
 
-EDGE_NODE_API_KEY = "test-edge-api-key-0001"
+EDGE_NODES = {
+    "А": {"name": "Edge Node A", "api_key": "test-edge-api-key-A"},
+    "Б": {"name": "Edge Node Б", "api_key": "test-edge-api-key-B"},
+    "Головний": {"name": "Edge Node Main", "api_key": "test-edge-api-key-Main"},
+}
 
 CAMERAS = [
     {"building": "А", "room": "214", "rtsp_url": "rtsp://192.168.1.10/stream1"},
@@ -139,18 +143,26 @@ async def main():
             person_map[p["person_code"]] = person
             print(f"  ✓ {p['full_name']} [{p['person_code']}] ({person.id})")
 
-        # ── Edge Node ──
-        print("\nCreating edge node...")
-        node = EdgeNode(name="Test Edge Node", api_key_hash=hash_api_key(EDGE_NODE_API_KEY))
-        db.add(node)
-        await db.flush()
-        print(f"  ✓ {node.name} ({node.id})")
-        print(f"    API Key: {EDGE_NODE_API_KEY}")
+        # ── Edge Nodes (one per building) ──
+        print("\nCreating edge nodes...")
+        node_map = {}
+        for building_name, node_info in EDGE_NODES.items():
+            node = EdgeNode(
+                name=node_info["name"],
+                api_key_hash=hash_api_key(node_info["api_key"]),
+                building_id=building_map[building_name].id,
+            )
+            db.add(node)
+            await db.flush()
+            node_map[building_name] = node
+            print(f"  ✓ {node.name} → Building {building_name} ({node.id})")
+            print(f"    API Key: {node_info['api_key']}")
 
         # ── Cameras ──
         print("\nCreating cameras...")
         for cam in CAMERAS:
             room = room_map[(cam["building"], cam["room"])]
+            node = node_map[cam["building"]]
             camera = Camera(room_id=room.id, edge_node_id=node.id, rtsp_url=cam["rtsp_url"])
             db.add(camera)
             await db.flush()
@@ -181,7 +193,9 @@ async def main():
 
     await engine.dispose()
     print("\n✅ Seed data created successfully!")
-    print(f"\nEdge Node API Key: {EDGE_NODE_API_KEY}")
+    print("\nEdge Node API Keys:")
+    for building_name, node_info in EDGE_NODES.items():
+        print(f"  {building_name}: {node_info['api_key']}")
 
 
 if __name__ == "__main__":

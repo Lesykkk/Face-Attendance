@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SessionState:
     session_id: int
+    camera_id: int
     start_time: datetime
     end_time: datetime
     students: list[PersonEmbeddings]
@@ -28,6 +29,8 @@ class SessionState:
 class SyncState:
     # camera rtsp_url → list of active sessions
     camera_sessions: dict[str, list[SessionState]] = field(default_factory=dict)
+    # camera rtsp_url → camera_id (int from DB)
+    camera_ids: dict[str, int] = field(default_factory=dict)
 
 
 class SyncManager:
@@ -62,14 +65,15 @@ class SyncManager:
             return
 
         new_camera_sessions: dict[str, list[SessionState]] = {}
+        new_camera_ids: dict[str, int] = {}
+
+        def _normalize(v: list[float]) -> np.ndarray:
+            vec = np.array(v, dtype=np.float32)
+            norm = np.linalg.norm(vec)
+            return vec / norm if norm > 0 else vec
 
         for session_data in data.get("sessions", []):
             rtsp = session_data["camera_rtsp"]
-
-            def _normalize(v: list[float]) -> np.ndarray:
-                vec = np.array(v, dtype=np.float32)
-                norm = np.linalg.norm(vec)
-                return vec / norm if norm > 0 else vec
 
             students = [
                 PersonEmbeddings(
@@ -79,15 +83,20 @@ class SyncManager:
                 for s in session_data.get("students", [])
             ]
             state = SessionState(
-                session_id=int(session_data["session_id"]),
-                start_time=datetime.fromisoformat(session_data["start_time"]),
-                end_time=datetime.fromisoformat(session_data["end_time"]),
-                students=students,
-            )
+                    session_id=int(session_data["session_id"]),
+                    camera_id=int(session_data["camera_id"]),
+                    start_time=datetime.fromisoformat(session_data["start_time"]),
+                    end_time=datetime.fromisoformat(session_data["end_time"]),
+                    students=students,
+                )
             new_camera_sessions.setdefault(rtsp, []).append(state)
+            new_camera_ids[rtsp] = int(session_data["camera_id"])
 
         async with self._lock:
-            self._state = SyncState(camera_sessions=new_camera_sessions)
+            self._state = SyncState(
+                camera_sessions=new_camera_sessions,
+                camera_ids=new_camera_ids,
+            )
 
         camera_count = len(new_camera_sessions)
         session_count = sum(len(v) for v in new_camera_sessions.values())

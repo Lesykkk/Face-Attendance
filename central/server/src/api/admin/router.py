@@ -6,6 +6,10 @@ from api.admin.rooms import router as rooms_router
 from api.admin.persons import router as persons_router
 from api.admin.hardware import router as hardware_router
 from api.admin.sessions import router as sessions_router
+from api.admin.dashboard import router as dashboard_router
+from api.admin.attendance import router as attendance_router
+from api.admin.sessions import router as sessions_router
+from api.admin.dashboard import router as dashboard_router
 
 router = APIRouter()
 
@@ -15,3 +19,5 @@ router.include_router(rooms_router)
 router.include_router(persons_router)
 router.include_router(hardware_router)
 router.include_router(sessions_router)
+router.include_router(dashboard_router)
+router.include_router(attendance_router)

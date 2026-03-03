@@ -10,6 +10,7 @@ class EdgeStudentEmbedding(BaseModel):
 
 class EdgeSessionData(BaseModel):
     session_id: int
+    camera_id: int
     camera_rtsp: str
     start_time: datetime
     end_time: datetime

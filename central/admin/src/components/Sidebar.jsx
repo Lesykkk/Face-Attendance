@@ -51,7 +51,6 @@ const Sidebar = () => {
       </nav>
 
       <div className="pt-4 border-t border-border space-y-1">
-        <SidebarItem icon={Settings} label="Settings" path="/settings" active={isActive('/settings')} />
         <button 
           onClick={logout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 text-muted-foreground hover:bg-destructive/10 hover:text-destructive mt-1"

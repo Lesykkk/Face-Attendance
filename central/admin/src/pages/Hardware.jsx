@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { Cpu, Camera, Plus, Trash2, Shield, Key, Loader2, Server, Video, ChevronRight, Edit2, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Cpu, Camera, Plus, Trash2, Shield, Key, Loader2, Server, Video, ChevronRight, Edit2, ChevronDown, CheckCircle2, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CustomSelect from '../components/CustomSelect';
 import DeleteModal from '../components/DeleteModal';
 import ErrorModal from '../components/ErrorModal';
+import CameraPreviewModal from '../components/CameraPreviewModal';
 
 const Hardware = () => {
   const [nodes, setNodes] = useState([]);
@@ -25,7 +26,9 @@ const Hardware = () => {
 
   // Form Inputs
   const [nodeName, setNodeName] = useState('');
+  const [nodeBuilding, setNodeBuilding] = useState('');
   const [cameraRtsp, setCameraRtsp] = useState('');
+  const [cameraRoom, setCameraRoom] = useState('');
   
   // Common Delete/Error Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -36,13 +39,26 @@ const Hardware = () => {
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Camera Location Form Inputs (only used during creation)
-  const [cameraBuilding, setCameraBuilding] = useState('');
-  const [cameraRoom, setCameraRoom] = useState('');
+  // Camera Preview State
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewCamera, setPreviewCamera] = useState(null);
+  const [nodeStatus, setNodeStatus] = useState({});
 
   useEffect(() => {
     fetchNodes();
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await api.get('/hardware/nodes/status');
+      setNodeStatus(res.data || {});
+    } catch (e) {
+      console.error('Error fetching node status:', e);
+    }
+  };
 
   const fetchNodes = async () => {
     try {
@@ -101,7 +117,16 @@ const Hardware = () => {
           fetchNodes();
           resetModalState();
         } else {
-          const response = await api.post('/hardware/nodes', { name: nodeName });
+          if (!nodeBuilding) {
+            setErrorMessage('Building is required when registering an Edge Node');
+            setErrorModalOpen(true);
+            setIsSubmitting(false);
+            return;
+          }
+          const response = await api.post('/hardware/nodes', { 
+            name: nodeName,
+            building_id: parseInt(nodeBuilding, 10)
+          });
           setNewNodeKey(response.data.api_key); // Shows the success screen with key
           fetchNodes();
           // Do NOT reset state here because we need to show the key
@@ -115,8 +140,8 @@ const Hardware = () => {
           });
           fetchCamerasForNode(editingItem.edge_node_id, true);
         } else {
-          if (!cameraBuilding || !cameraRoom) {
-            setErrorMessage('Building and Room are required when adding a new camera');
+          if (!cameraRoom) {
+            setErrorMessage('Room is required when adding a new camera');
             setErrorModalOpen(true);
             setIsSubmitting(false);
             return;
@@ -167,8 +192,8 @@ const Hardware = () => {
     setIsEditMode(false);
     setEditingItem(null);
     setNodeName('');
+    setNodeBuilding('');
     setCameraRtsp('');
-    setCameraBuilding('');
     setCameraRoom('');
   };
 
@@ -177,19 +202,22 @@ const Hardware = () => {
   const [roomsByBuilding, setRoomsByBuilding] = useState({});
 
   useEffect(() => {
-    if (modalType === 'camera' && !isEditMode && isModalOpen) {
-      // Fetch buildings so user can pick a room
+    if (modalType === 'node' && !isEditMode && isModalOpen) {
       api.get('/buildings').then(res => setBuildings(res.data)).catch(console.error);
     }
   }, [modalType, isEditMode, isModalOpen]);
 
   useEffect(() => {
-    if (cameraBuilding && !roomsByBuilding[cameraBuilding]) {
-      api.get(`/buildings/${cameraBuilding}/rooms`)
-        .then(res => setRoomsByBuilding(prev => ({ ...prev, [cameraBuilding]: res.data })))
-        .catch(console.error);
+    if (modalType === 'camera' && !isEditMode && isModalOpen && editingItem?.building_id) {
+      // Fetch rooms for the building where the Node is installed
+      const bId = editingItem.building_id;
+      if (!roomsByBuilding[bId]) {
+        api.get(`/buildings/${bId}/rooms`)
+          .then(res => setRoomsByBuilding(prev => ({ ...prev, [bId]: res.data })))
+          .catch(console.error);
+      }
     }
-  }, [cameraBuilding, roomsByBuilding]);
+  }, [modalType, isEditMode, isModalOpen, editingItem]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -205,6 +233,7 @@ const Hardware = () => {
             setIsEditMode(false);
             setEditingItem(null);
             setNodeName('');
+            setNodeBuilding('');
             setIsModalOpen(true);
           }}
           className="bg-primary text-primary-foreground px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
@@ -243,17 +272,21 @@ const Hardware = () => {
                       >
                         <ChevronRight size={18} />
                       </button>
-                      <div className="w-12 h-12 rounded-2xl bg-green-100 flex items-center justify-center text-green-600 shadow-inner group-hover:scale-110 transition-transform duration-300">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300 ${nodeStatus[node.id] ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
                         <Server size={24} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-lg leading-tight">{node.name}</h4>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-500/10 text-green-600">
-                            Online
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${nodeStatus[node.id] ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-500'}`}>
+                            {nodeStatus[node.id] ? 'Online' : 'Offline'}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
+                          <p className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                             Building: <span className="text-foreground font-bold">{node.building.name}</span>
+                          </p>
+                          <span className="w-1 h-1 rounded-full bg-border" />
                           <p className="text-xs text-muted-foreground font-medium">Node ID: {node.id}</p>
                           <span className="w-1 h-1 rounded-full bg-border" />
                           <p className="text-xs font-bold text-primary flex items-center gap-1">
@@ -285,6 +318,7 @@ const Hardware = () => {
                           setIsEditMode(true);
                           setEditingItem(node);
                           setNodeName(node.name);
+                          setNodeBuilding(node.building_id || '');
                           setIsModalOpen(true);
                         }}
                         className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
@@ -338,6 +372,15 @@ const Hardware = () => {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1 opacity-0 group-hover/camera:opacity-100 transition-opacity">
+                                  <button 
+                                    onClick={() => {
+                                      setPreviewCamera(camera);
+                                      setPreviewModalOpen(true);
+                                    }}
+                                    className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
+                                  >
+                                    <Eye size={14} />
+                                  </button>
                                   <button 
                                     onClick={() => {
                                       setModalType('camera');
@@ -453,18 +496,31 @@ const Hardware = () => {
                   <form onSubmit={handleSubmit} className="space-y-4">
                     
                     {modalType === 'node' && (
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium text-muted-foreground ml-1">Node Name</label>
-                        <input
-                          type="text"
-                          autoFocus
-                          value={nodeName}
-                          onChange={(e) => setNodeName(e.target.value)}
-                          className="w-full bg-secondary/30 border border-border rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium placeholder:text-muted-foreground/50"
-                          placeholder="e.g. Building A Main"
-                          required
-                        />
-                      </div>
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-sm font-medium text-muted-foreground ml-1">Node Name</label>
+                          <input
+                            type="text"
+                            autoFocus
+                            value={nodeName}
+                            onChange={(e) => setNodeName(e.target.value)}
+                            className="w-full bg-secondary/30 border border-border rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium placeholder:text-muted-foreground/50"
+                            placeholder="e.g. Building A Main"
+                            required
+                          />
+                        </div>
+                        {!isEditMode && (
+                          <div className="mt-4">
+                            <CustomSelect
+                              label="Installed in Building"
+                              value={nodeBuilding}
+                              options={buildings}
+                              onChange={setNodeBuilding}
+                              placeholder="Select Building"
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {modalType === 'camera' && (
@@ -484,30 +540,19 @@ const Hardware = () => {
 
                         {/* Location Fields - Only during creation */}
                         {!isEditMode && (
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4 mt-4">
                             <CustomSelect
-                              label="Building"
-                              value={cameraBuilding}
-                              options={buildings}
-                              onChange={(id) => {
-                                setCameraBuilding(id);
-                                setCameraRoom('');
-                              }}
-                              placeholder="Select Building"
-                            />
-                            <CustomSelect
-                              label="Room"
+                              label={`Room (Building: ${editingItem?.building?.name || '—'})`}
                               value={cameraRoom}
-                              options={roomsByBuilding[cameraBuilding] || []}
+                              options={roomsByBuilding[editingItem?.building_id] || []}
                               onChange={(id) => setCameraRoom(id)}
                               placeholder="Select Room"
-                              disabled={!cameraBuilding}
                             />
                           </div>
                         )}
                         {!isEditMode && (
                           <p className="text-xs text-muted-foreground ml-1 mt-2">
-                            Assigning to Node: <span className="font-bold">{editingItem?.name}</span>
+                            Adding to Node: <span className="font-bold">{editingItem?.name}</span>
                           </p>
                         )}
                       </>
@@ -523,7 +568,7 @@ const Hardware = () => {
                       </button>
                       <button
                         type="submit"
-                        disabled={isSubmitting || (modalType === 'camera' && !isEditMode && !cameraRoom)}
+                        disabled={isSubmitting || (modalType === 'camera' && !isEditMode && !cameraRoom) || (modalType === 'node' && !isEditMode && !nodeBuilding)}
                         className="flex-1 bg-primary text-primary-foreground px-4 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {isSubmitting ? (
@@ -555,6 +600,13 @@ const Hardware = () => {
         isOpen={errorModalOpen}
         onClose={() => setErrorModalOpen(false)}
         message={errorMessage}
+      />
+
+      <CameraPreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        cameraId={previewCamera?.id}
+        cameraRtsp={previewCamera?.rtsp_url}
       />
     </div>
   );

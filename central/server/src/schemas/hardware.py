@@ -1,8 +1,11 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+from schemas.building import BuildingResponse
+
 
 class EdgeNodeCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
+    building_id: int
 
 
 class EdgeNodeResponse(BaseModel):
@@ -10,6 +13,9 @@ class EdgeNodeResponse(BaseModel):
 
     id: int
     name: str
+    building_id: int
+    building: BuildingResponse
+
 
 
 class EdgeNodeResponseAfterCreate(EdgeNodeResponse):

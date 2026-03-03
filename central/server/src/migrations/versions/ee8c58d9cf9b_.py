@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 558cee33edfe
+Revision ID: ee8c58d9cf9b
 Revises: 
-Create Date: 2026-02-24 18:18:54.526357
+Create Date: 2026-03-02 21:55:51.213793
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import pgvector.sqlalchemy
 
 
 # revision identifiers, used by Alembic.
-revision: str = '558cee33edfe'
+revision: str = 'ee8c58d9cf9b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -37,13 +37,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name')
     )
-    op.create_table('edge_nodes',
-    sa.Column('name', sa.String(length=100), nullable=False),
-    sa.Column('api_key_hash', sa.String(length=255), nullable=False),
-    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('name')
-    )
     op.create_table('persons',
     sa.Column('full_name', sa.String(length=100), nullable=False),
     sa.Column('person_code', sa.String(length=50), nullable=False),
@@ -52,19 +45,28 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('person_code')
     )
+    op.create_table('edge_nodes',
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('api_key_hash', sa.String(length=255), nullable=False),
+    sa.Column('building_id', sa.BigInteger(), nullable=False),
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.ForeignKeyConstraint(['building_id'], ['buildings.id'], ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name')
+    )
     op.create_table('face_embeddings',
     sa.Column('person_id', sa.BigInteger(), nullable=False),
     sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=128), nullable=False),
     sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['person_id'], ['persons.id'], ),
+    sa.ForeignKeyConstraint(['person_id'], ['persons.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('rooms',
     sa.Column('building_id', sa.BigInteger(), nullable=False),
     sa.Column('name', sa.String(length=50), nullable=False),
     sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
-    sa.ForeignKeyConstraint(['building_id'], ['buildings.id'], ),
+    sa.ForeignKeyConstraint(['building_id'], ['buildings.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('building_id', 'name', name='uq_room_building_name')
     )
@@ -74,8 +76,8 @@ def upgrade() -> None:
     sa.Column('rtsp_url', sa.String(length=255), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
-    sa.ForeignKeyConstraint(['edge_node_id'], ['edge_nodes.id'], ),
-    sa.ForeignKeyConstraint(['room_id'], ['rooms.id'], ),
+    sa.ForeignKeyConstraint(['edge_node_id'], ['edge_nodes.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['room_id'], ['rooms.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('sessions',
@@ -107,8 +109,8 @@ def upgrade() -> None:
     op.create_table('session_members',
     sa.Column('session_id', sa.BigInteger(), nullable=False),
     sa.Column('person_id', sa.BigInteger(), nullable=False),
-    sa.ForeignKeyConstraint(['person_id'], ['persons.id'], ),
-    sa.ForeignKeyConstraint(['session_id'], ['sessions.id'], ),
+    sa.ForeignKeyConstraint(['person_id'], ['persons.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['session_id'], ['sessions.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('session_id', 'person_id')
     )
     # ### end Alembic commands ###
@@ -123,8 +125,8 @@ def downgrade() -> None:
     op.drop_table('cameras')
     op.drop_table('rooms')
     op.drop_table('face_embeddings')
-    op.drop_table('persons')
     op.drop_table('edge_nodes')
+    op.drop_table('persons')
     op.drop_table('buildings')
     op.drop_table('admins')
     # ### end Alembic commands ###

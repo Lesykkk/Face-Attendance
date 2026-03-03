@@ -16,6 +16,6 @@ class FaceEmbedding(IntPKMixin, TimestampMixin, Base):
     __tablename__ = "face_embeddings"
 
     person_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("persons.id", ondelete="CASCADE"))
-    embedding = mapped_column(Vector(128), nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(128), nullable=False)
 
     person: Mapped[Person] = relationship(back_populates="embeddings", lazy="raise")

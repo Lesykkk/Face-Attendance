@@ -1,3 +1,7 @@
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { User, Lock, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import logo from '../assets/logo.svg';
 
 const Login = () => {

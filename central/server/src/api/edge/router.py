@@ -1,13 +1,14 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, status
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
 from core.dependencies import DbDep, EdgeNodeDep
 from models.camera import Camera
-from models.session import Session
-from models.face_embedding import FaceEmbedding
+from models.person import Person
+from models.session import Session, SessionMember
 from models.attendance_log import AttendanceLog
 from schemas.edge import (
     EdgeAttendanceReport,
@@ -34,41 +35,48 @@ async def edge_sync(db: DbDep, edge_node: EdgeNodeDep):
     if not cameras:
         return EdgeSyncResponse(sessions=[])
 
-    sessions_data = []
+    room_ids = [c.room_id for c in cameras]
 
-    for camera in cameras:
-        result = await db.execute(
-            select(Session)
-            .where(
-                Session.room_id == camera.room_id,
-                Session.start_time <= now,
-                Session.end_time >= now,
-            )
-            .options(selectinload(Session.members))
+    result = await db.execute(
+        select(Session)
+        .where(
+            Session.room_id.in_(room_ids),
+            Session.start_time <= now,
+            Session.end_time >= now,
         )
-        active_sessions = result.scalars().all()
+        .options(
+            selectinload(Session.members)
+            .selectinload(SessionMember.person)
+            .selectinload(Person.embeddings)
+        )
+    )
+    active_sessions = result.scalars().all()
 
-        for session in active_sessions:
-            students = []
-            for member in session.members:
-                result = await db.execute(
-                    select(FaceEmbedding).where(
-                        FaceEmbedding.person_id == member.person_id
-                    )
-                )
-                embeddings = result.scalars().all()
+    if not active_sessions:
+        return EdgeSyncResponse(sessions=[])
 
-                if embeddings:
-                    students.append(EdgeStudentEmbedding(
-                        person_id=member.person_id,
-                        embeddings=[
-                            e.embedding.tolist() if hasattr(e.embedding, 'tolist') else list(e.embedding)
-                            for e in embeddings
-                        ],
-                    ))
+    room_to_cameras: dict[int, list] = {}
+    for c in cameras:
+        room_to_cameras.setdefault(c.room_id, []).append(c)
 
+    sessions_data = []
+    for session in active_sessions:
+        cams = room_to_cameras.get(session.room_id, [])
+        if not cams:
+            continue
+
+        students = [
+            EdgeStudentEmbedding(
+                person_id=member.person_id,
+                embeddings=[list(e.embedding) for e in member.person.embeddings],
+            )
+            for member in session.members if member.person.embeddings
+        ]
+
+        for camera in cams:
             sessions_data.append(EdgeSessionData(
                 session_id=session.id,
+                camera_id=camera.id,
                 camera_rtsp=camera.rtsp_url,
                 start_time=session.start_time,
                 end_time=session.end_time,
@@ -80,23 +88,9 @@ async def edge_sync(db: DbDep, edge_node: EdgeNodeDep):
 
 @router.post("/attendance", status_code=status.HTTP_200_OK)
 async def report_attendance(body: EdgeAttendanceReport, db: DbDep, edge_node: EdgeNodeDep):
-    result = await db.execute(
-        select(AttendanceLog).where(
-            and_(
-                AttendanceLog.person_id == body.person_id,
-                AttendanceLog.session_id == body.session_id,
-            )
-        )
-    )
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        existing.last_seen_at = body.timestamp
-        existing.detection_count += 1
-        if body.confidence > existing.max_confidence:
-            existing.max_confidence = body.confidence
-    else:
-        log = AttendanceLog(
+    stmt = (
+        pg_insert(AttendanceLog)
+        .values(
             person_id=body.person_id,
             session_id=body.session_id,
             first_seen_at=body.timestamp,
@@ -105,7 +99,17 @@ async def report_attendance(body: EdgeAttendanceReport, db: DbDep, edge_node: Ed
             max_confidence=body.confidence,
             edge_node_id=edge_node.id,
         )
-        db.add(log)
-
+        .on_conflict_do_update(
+            index_elements=["person_id", "session_id"],
+            set_={
+                "last_seen_at": body.timestamp,
+                "detection_count": AttendanceLog.detection_count + 1,
+                "max_confidence": func.greatest(
+                    AttendanceLog.max_confidence, body.confidence
+                ),
+            },
+        )
+    )
+    await db.execute(stmt)
     await db.commit()
     return {"status": "ok"}

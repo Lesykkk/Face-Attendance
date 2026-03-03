@@ -59,7 +59,7 @@ async def refresh(
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token type")
         admin_id = int(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
 
     admin = await db.get(Admin, admin_id)
     if admin is None:

@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -18,12 +20,19 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 
+
 def hash_api_key(api_key: str) -> str:
-    return pwd_context.hash(api_key)
+    return hmac.new(
+        settings.SECRET_KEY.encode(),
+        api_key.encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
-def verify_api_key(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+def verify_api_key(plain: str, stored_hash: str) -> bool:
+    expected = hash_api_key(plain)
+    return hmac.compare_digest(expected, stored_hash)
+
 
 
 
@@ -48,7 +57,6 @@ def create_refresh_token(sub: str) -> str:
 
 
 def decode_token(token: str) -> dict:
-    """Decode and verify a JWT. Raises jwt.PyJWTError on failure."""
     return jwt.decode(
         token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
     )

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.security import decode_token, verify_api_key
+from core.security import decode_token, hash_api_key
 from models.admin import Admin
 from models.edge_node import EdgeNode
 
@@ -19,14 +19,14 @@ async def get_current_admin(
     authorization: Annotated[str | None, Header()] = None,
 ) -> Admin:
     if authorization is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing access token")
 
-    token = authorization.removeprefix("Bearer ").strip()
-    if not token or token == authorization:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid authorization header")
+    jwt_token = authorization.removeprefix("Bearer ").strip()
+    if not jwt_token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid access token")
 
     try:
-        payload = decode_token(token)
+        payload = decode_token(jwt_token)
         if payload.get("type") != "access":
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token type")
         admin_id = int(payload["sub"])
@@ -53,14 +53,14 @@ async def get_current_edge_node(
     if not api_key:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing API key")
 
-    result = await db.execute(select(EdgeNode))
-    nodes = result.scalars().all()
-
-    for node in nodes:
-        if verify_api_key(api_key, node.api_key_hash):
-            return node
-
-    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid API key")
+    key_hash = hash_api_key(api_key)
+    result = await db.execute(
+        select(EdgeNode).where(EdgeNode.api_key_hash == key_hash)
+    )
+    node = result.scalar_one_or_none()
+    if node is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid API key")
+    return node
 
 
 EdgeNodeDep = Annotated[EdgeNode, Depends(get_current_edge_node)]
